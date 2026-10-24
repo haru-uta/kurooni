@@ -240,6 +240,7 @@ body.touch #msg{bottom:calc(100% - var(--vt,0px) - var(--vh,100%) + 10px + env(s
 #visProbe{position:fixed;inset:0;pointer-events:none;visibility:hidden}
 @media (prefers-reduced-motion:reduce){#card .in,#msg .nx,.cimg.kb,#card,#card::after,#card .tick,#end .rays,#fx::before{animation:none}}
 @media (max-height:520px){#chap .nm{font-size:clamp(28px,11vh,52px)}#introTx{font-size:16px;min-height:3.4em}#endS{font-size:13px}#end .endwrap{padding:8px 14px 10px;line-height:1.55}#end h2{font-size:26px;margin:0 0 2px}#getpop{top:calc(var(--vt,0px) + 18%)}#getpop img{width:36px;height:36px}#getpop .ic{width:40px;height:40px}}
+.padf{outline:3px solid var(--gold)!important;outline-offset:3px;box-shadow:0 0 0 7px rgba(231,195,90,.3)!important}
 </style>
 
 <div id="visProbe"></div><canvas id="c" width="320" height="180"></canvas><div id="fx"></div>
@@ -292,6 +293,7 @@ body.touch #msg{bottom:calc(100% - var(--vt,0px) - var(--vh,100%) + 10px + env(s
       <dt>はしる</dt><dd><kbd>Shift</kbd> か <kbd>X</kbd> を押しながら（ゲージが減る）。スマホは「はしる」を押しながら</dd>
       <dt>かくれる</dt><dd>クローゼットの前で しらべる。見られていなければ やりすごせる</dd>
       <dt>一時停止</dt><dd><kbd>Esc</kbd></dd>
+      <dt>コントローラー</dt><dd>スティック か 十字キーで いどう、<b>A</b> しらべる、<b>B</b> はしる、<b>START</b> 一時停止。メニューは スティックで えらんで <b>A</b> で けってい、<b>B</b> で もどる</dd>
     </dl>
     <p>主人公は はるうたの 看板犬 <b style="color:var(--gold);font-weight:400">モリー</b>。屋敷のどこかにある <b style="color:var(--gold);font-weight:400">玄関のカギ</b> を見つけて、朝の光で みんなの 呪いを とこう。</p>
     <dl>
@@ -1420,6 +1422,72 @@ function cont(){aInit();let cp=CP;if(!cp){try{cp=JSON.parse(localStorage.getItem
 function setPause(p){if(G.state!=='play')return;G.paused=p;$('#pause').hidden=!p;if(p)$('#pRes').focus();for(const k in keys)keys[k]=false}
 function toTitle(){G.state='title';resetRuntime();$('#hud').hidden=true;$('#touch').hidden=true;$('#pauseBtn').hidden=true;$('#msg').hidden=true;$('#card').hidden=true;DQ.length=0;dlg=null;showOnly('title');
   let has=false;try{has=!!localStorage.getItem('kurooniSave')}catch(e){}$('#bCont').disabled=!has&&!CP;ctx.fillStyle='#000';ctx.fillRect(0,0,VW,VH);$('#bNew').focus()}
+// ================= gamepad menus: stick / D-pad moves the focus ring, A = select, B = back, START = pause
+// cfg.root() -> element whose buttons are navigable (null = gameplay, pad handled elsewhere)
+// cfg.custom(pi,ev) -> true when the screen handles the pad itself (ev: 'up'|'down'|'left'|'right'|'a'|'b'|'start')
+// cfg.back(root), cfg.start() -> optional
+function makePadNav(cfg){
+  const S={btn:[],dir:[],hold:[],cur:null,used:false,lastRoot:null,rootT:0,lock:0};
+  const DIRS=['up','down','left','right'];
+  function shown(el){if(el.disabled)return false;for(let e=el;e&&e!==document.body;e=e.parentElement)if(e.hidden)return false;
+    const r=el.getBoundingClientRect();if(r.width<2||r.height<2)return false;const cs=getComputedStyle(el);return cs.visibility!=='hidden'&&cs.display!=='none'}
+  function items(root){return [...root.querySelectorAll('button,[tabindex="0"]')].filter(shown)}
+  function ring(el){if(S.cur&&S.cur!==el)S.cur.classList.remove('padf');S.cur=el;if(!el)return;el.classList.add('padf');try{el.focus({preventScroll:true})}catch(e){}
+    try{el.scrollIntoView({block:'nearest',inline:'nearest'})}catch(e){}}
+  function pick(list){const a=document.activeElement;if(a&&list.includes(a))return a;if(S.cur&&list.includes(S.cur))return S.cur;return list[0]}
+  function step(list,from,d){const r=from.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+    const vx=d==='left'?-1:d==='right'?1:0,vy=d==='up'?-1:d==='down'?1:0;let best=null,bs=1e9;
+    for(const el of list){if(el===from)continue;const q=el.getBoundingClientRect(),dx=q.left+q.width/2-cx,dy=q.top+q.height/2-cy;
+      const along=dx*vx+dy*vy;if(along<=4)continue;const side=Math.abs(dx*vy)+Math.abs(dy*vx);
+      const lined=vx?(q.top<r.bottom-2&&q.bottom>r.top+2):(q.left<r.right-2&&q.right>r.left+2);const sc=along+side*2.2+(lined?0:1e5);if(sc<bs){bs=sc;best=el}}
+    return best}
+  // returns true when the screen changed (the rest of this poll is dropped so a second pad cannot act on the new screen)
+  function fire(pi,ev,t){
+    const r0=cfg.root();
+    if(cfg.custom&&cfg.custom(pi,ev))return cfg.root()!==r0;
+    if(ev==='start'){if(cfg.start)cfg.start();return cfg.root()!==r0}
+    const root=r0;if(!root)return false;const list=items(root);if(!list.length)return false;
+    // first touch of the pad: show the ring, never press anything
+    if(!S.used||!S.cur||!list.includes(S.cur)){S.used=true;ring(pick(list));if(ev!=='b')return false}
+    if(DIRS.includes(ev)){const n=step(list,S.cur,ev);if(n){ring(n);if(cfg.tick)cfg.tick()}return false}
+    // a screen that only just opened, or a press right after another one: ignore (no accidental double select)
+    if(t<S.lock||t-S.rootT<220)return false;
+    if(ev==='a'){S.lock=t+250;S.cur.click();return cfg.root()!==r0}
+    if(ev==='b'&&cfg.back){S.lock=t+250;cfg.back(root);return cfg.root()!==r0}
+    return false}
+  function pads(){try{return navigator.getGamepads?[...navigator.getGamepads()]:[]}catch(e){return[]}}
+  // stick: dominant axis only, with hysteresis (on past .55, stays on until back inside .35)
+  function axisDir(ax,ay,prev){const keep=.35;
+    if((prev==='left'&&ax<-keep)||(prev==='right'&&ax>keep)||(prev==='up'&&ay<-keep)||(prev==='down'&&ay>keep))return prev;
+    const ux=Math.abs(ax),uy=Math.abs(ay);if(ux<.55&&uy<.55)return null;return ux>=uy?(ax<0?'left':'right'):(ay<0?'up':'down')}
+  function poll(t){
+    const ps=pads();
+    outer:for(let i=0;i<ps.length;i++){const p=ps[i];if(!p||!p.connected)continue;
+      const b=k=>!!(p.buttons[k]&&p.buttons[k].pressed);const pd=S.dir[i]||null;
+      const dp=b(12)?'up':b(13)?'down':b(14)?'left':b(15)?'right':null;// one direction per pad per poll
+      const d=dp||axisDir(p.axes[0]||0,p.axes[1]||0,pd);
+      const btn={a:b(0),b:b(1),start:b(9)},pb=S.btn[i]||{};S.btn[i]=btn;S.dir[i]=d;
+      if(d&&d!==pd){S.hold[i]=t+340;if(fire(i,d,t))break outer}
+      else if(d&&t>=S.hold[i]){S.hold[i]=t+120;if(fire(i,d,t))break outer}
+      for(const k in btn)if(btn[k]&&!pb[k]&&fire(i,k,t))break outer}
+    const root=cfg.root();if(root!==S.lastRoot){S.lastRoot=root;S.rootT=t;if(S.cur){S.cur.classList.remove('padf');S.cur=null}
+      if(root&&S.used){const list=items(root);if(list.length)ring(pick(list))}}}
+  addEventListener('pointerdown',()=>{S.used=false;if(S.cur){S.cur.classList.remove('padf');S.cur=null}},true);
+  addEventListener('keydown',()=>{S.used=false;if(S.cur){S.cur.classList.remove('padf');S.cur=null}},true);
+  // own timer, not the render loop: a slow frame rate must not swallow short presses
+  setInterval(()=>{try{poll(performance.now())}catch(e){console.error(e)}},16);
+  return S}
+const PADNAV=makePadNav({
+  root(){if(G.state==='play'&&!G.paused)return null;if(['intro','code','pianoDone'].includes(G.state))return null;if(G.state==='caught'&&$('#over').hidden)return null;
+    for(const id of['pause','piano','over','end','diff','howto','title']){const e=$('#'+id);if(e&&!e.hidden)return e}return null},
+  custom(pi,ev){if(ev==='a')G.gpA=true;
+    if(G.state==='intro'){if(ev==='a'||ev==='b')introNext();return true}
+    if(G.state==='code'){const m={up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',a:'Enter',b:'Escape'}[ev];if(m)onKey({code:m,preventDefault(){}});return true}
+    if(G.state==='play'&&ev==='start'){setPause(!G.paused);return true}
+    if(G.state==='play'&&!G.paused)return true;
+    return false},
+  back(root){const id=root.id;if(id==='pause')setPause(false);else if(id==='piano')pianoClose();else if(id==='diff'||id==='howto')toTitle()},
+  tick(){sfx('click')}});
 function onKey(e){
   if(G.state==='intro'&&['Space','Enter','KeyZ','NumpadEnter'].includes(e.code)){actPressed=false;introNext();return}
   if(G.state==='code'){const k=e.code;if(k==='ArrowLeft'||k==='KeyA')G.codeSel=(G.codeSel+3)%4;if(k==='ArrowRight'||k==='KeyD')G.codeSel=(G.codeSel+1)%4;
@@ -1480,6 +1548,6 @@ function makeLogo(){try{const L=mkC(200,96),g=L.getContext('2d');g.fillStyle='#f
   const im=$('#logoImg');im.src=out.toDataURL();im.hidden=false}catch(e){}}
 makeLogo();try{document.fonts.load('72px DotGothic16').then(makeLogo,()=>{})}catch(e){}
 redrawMap();$('#loading').remove();toTitle();requestAnimationFrame(frame);
-window.__game={G,F,INV,M,SPR,BOSS,DIFF,stick,validCP,newGame,goFloor,beam,pianoKey,restore,snapshot,introNext,codeTry,get FLOORM(){return FLOORM},useTile,spawnBoss,feetTile,get CODE(){return CODE},get CP(){return CP},caught,walk,bfs,interact};
+window.__game={PADNAV,openCode,openPiano,G,F,INV,M,SPR,BOSS,DIFF,stick,validCP,newGame,goFloor,beam,pianoKey,restore,snapshot,introNext,codeTry,get FLOORM(){return FLOORM},useTile,spawnBoss,feetTile,get CODE(){return CODE},get CP(){return CP},caught,walk,bfs,interact};
 </script>
 </body></html>
