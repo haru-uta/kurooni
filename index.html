@@ -306,7 +306,7 @@ body.touch #msg{bottom:calc(100% - var(--vt,0px) - var(--vh,100%) + 10px + env(s
       <dt>けんけん</dt><dd>長い うでが ぐーんと のびる。少し はなれても あぶない</dd>
       <dt>？？？</dt><dd>さいごに 待っている……</dd>
       <dt>ロングモード</dt><dd>1階の あと 2階・3階へ。ピアノ・絵・時計・ろうそく・鏡の なぞときと、屋敷の ひみつの 物語</dd>
-      <dt style="color:#7fe0b0">詩ちゃん</dt><dd>なかまの 女の子。話しかけると ヒントを くれる（頭に「？」が出たら 新しい ヒント）</dd>
+      <dt style="color:#7fe0b0">詩ちゃん</dt><dd>なかまの 女の子。話しかけると ヒントを くれる（頭に「？」が出たら 新しい ヒント）。鬼が 近くに いる あいだは 物かげに かくれている</dd>
     </dl>
     <p>つかまると たべられてしまう。進みぐあいは アイテムを取るたびに 記録される。</p>
     <div class="row"><button type="button" id="howBack">もどる</button></div>
@@ -837,9 +837,16 @@ function utaHint(){const st=utaStage();const H=[
   ['屋根裏の ろうそくは、火を つけると となりも ゆれるの。ぜんぶ ともして！','星見の塔では、鏡の 向きを かえて 月の光を 水晶に あつめるんだよ！'],
   ['光の かけらが そろったね！ 朝の光 みたい……大きな とびらへ 急ごう。','代表が 待ってる……。赤い線に 気をつけて、光の 祭壇まで 走って！']][st];
   G.utaSeen=st;return H}
+function utaHere(){return G.uta&&G.uta.st!=null&&(G.uta.floor||0)===G.floor}
+function utaShown(){return utaHere()&&!G.uta.hid}
+function utaThreat(U){const ur=roomAt(Math.floor(U.x/TS),Math.floor((U.y-2)/TS));for(const e of G.enemies){if(Math.hypot(e.x-U.x,e.y-U.y)<6*TS)return true;const er=roomAt(Math.floor(e.x/TS),Math.floor((e.y-2)/TS));if(ur&&er&&ur.id===er.id)return true}return false}
+function utaPuff(U){for(let i=0;i<7;i++)G.puffs.push({x:U.x+rand(-6,6),y:U.y-2,vx:rand(-10,10),vy:rand(-9,-2),t:0,l:rand(.35,.6)})}
+function utaHide(){const U=G.uta;if(!U||U.st==null)return;if(!utaHere()){U.hid=false;return}
+  if(utaThreat(U)){U.lastThreat=G.t;if(!U.hid){U.hid=true;utaPuff(U);sfx('click')}}
+  else if(U.hid&&G.t-(U.lastThreat||0)>1.8){U.hid=false;utaPuff(U);sfx('click')}}
 function utaTick(){const st=utaStage();const [fl,sx,sy]=st<7?[0,...UTA_SPOTS[st]]:UTA_L[st-7];const U=G.uta;if(!U)return;if(U.st!==st){const [px,py]=feetTile(G.p);const cur=roomAt(Math.floor(U.x/TS),Math.floor((U.y-2)/TS)),pr=roomAt(px,py);
   if(U.st==null||(U.floor||0)!==G.floor||fl!==G.floor||!cur||!pr||cur.id!==pr.id){U.x=sx*TS+8;U.y=sy*TS+12;U.st=st;U.floor=fl}}U.dir=dirTo(U,G.p);U.f=0}
-function resetRuntime(){G.gen=(G.gen||0)+1;G.cardT=0;G.caught=null;G.hideTile=null;G.hidePos=null;G.hideC=null;G.roomT=0;G.enemies=[];G.chase=false;G.shake=0;G.flash=0;G.paused=false;G.lastRoom=null;G.near=99;G.traps=[];G.shots=[];G.paintStep=0;G.uta={x:8*TS+8,y:5*TS+12,dir:0,st:null};G.utaSeen=-1;G.puffs=[];G.lt=0;G.ltT=rand(14,26);
+function resetRuntime(){G.gen=(G.gen||0)+1;G.cardT=0;G.caught=null;G.hideTile=null;G.hidePos=null;G.hideC=null;G.roomT=0;G.enemies=[];G.chase=false;G.shake=0;G.flash=0;G.paused=false;G.lastRoom=null;G.near=99;G.traps=[];G.shots=[];G.paintStep=0;G.uta={x:8*TS+8,y:5*TS+12,dir:0,st:null,hid:false,lastThreat:0};G.utaSeen=-1;G.puffs=[];G.lt=0;G.ltT=rand(14,26);
   {const sc=$('#scene');sc.classList.remove('on');sc.hidden=true;cineClear(sc);const ch=$('#chap');ch.hidden=true;cineClear(ch);$('#getpop').hidden=true}
   DQ.length=0;dlg=null;$('#msg').hidden=true;$('#card').hidden=true;$('#room').style.opacity=0;for(const k in keys)keys[k]=false;for(const k in touch)touch[k]=0;actPressed=false;stick.id=null;stick.x=stick.y=stick.mag=0;stickRest()}
 function newPlayer(tx,ty){return{x:tx*TS+8,y:ty*TS+12,dir:0,f:0,ft:0,moving:false,stam:1,tired:false,hidden:false}}
@@ -1063,7 +1070,7 @@ function updEnemy(e,dt){const p=G.p;const [ex,ey]=feetTile(e),[px,py]=feetTile(p
 // ================= events
 function interact(){const p=G.p;
   if(p.hidden){p.hidden=false;G.hideTile=null;redrawTile(G.hideC[0],G.hideC[1]);sfx('hide');return}
-  if(G.uta&&G.uta.st!=null&&(G.uta.floor||0)===G.floor&&Math.hypot(G.uta.x-p.x,G.uta.y-p.y)<22){sfx('msg');const ls=utaHint().map(t=>({who:'詩ちゃん',tx:t}));if(!F.utaMet){F.utaMet=true;ls.forEach(l=>l.img='uta')}say(ls);return}
+  if(utaHere()&&Math.hypot(G.uta.x-p.x,G.uta.y-p.y)<22){if(G.uta.hid){say(['……物かげで だれかが じっと 息を ひそめている。','（詩ちゃんだ。鬼が いなくなるまで かくれている みたい）']);return}sfx('msg');const ls=utaHint().map(t=>({who:'詩ちゃん',tx:t}));if(!F.utaMet){F.utaMet=true;ls.forEach(l=>l.img='uta')}say(ls);return}
   const [tx,ty]=feetTile(p);const d=[[0,1],[-1,0],[1,0],[0,-1]][p.dir];const fx=Math.floor((p.x+d[0]*10)/TS),fy=Math.floor((p.y-4+d[1]*10)/TS);
   const cand=[[fx,fy],[tx+d[0],ty+d[1]]];
   for(const [x,y] of cand){const ch=tile(x,y);if(useTile(ch,x,y))return}
@@ -1238,7 +1245,7 @@ function update(dt){
     if(r.id==='cor'&&F.finalRyo&&!F.finalRyoDone&&G.diff!==0){F.finalRyoDone=true;spawnBoss('ryo',1,9,false)}}
   if(G.roomT>0){G.roomT-=dt;if(G.roomT<=0)$('#room').style.opacity=0}
   const amb=r?(r.id==='base'?(F.power?.78:.96):r.amb):G.amb;G.amb+=(amb-G.amb)*Math.min(1,dt*2);
-  utaTick();
+  utaTick();utaHide();
   // enemies
   if(!busy)for(const e of G.enemies)updEnemy(e,dt);
   if(!busy){for(const t of G.traps){t.life-=dt;if(!p.hidden&&!(p.stun>0)&&Math.hypot(t.x-p.x,t.y-p.y)<7){t.life=0;p.stun=D().stun;sfx('snap');sfx('yelp');G.shake=.2;G.flash=.15;G.flashCol='#e7c35a'}}G.traps=G.traps.filter(t=>t.life>0);
@@ -1309,7 +1316,7 @@ function render(){
   // dust puffs behind the feet
   for(const f of G.puffs){const k=f.t/f.l,r=(f.big?2:1)+k*(f.big?3:2.5),d=Math.max(2,Math.round(r*2)),x=Math.round(f.x-cx-r),y=Math.round(f.y-cy-r);ctx.globalAlpha=.55*(1-k);ctx.fillStyle='#cdc4b6';ctx.fillRect(x+1,y,d-2,d);ctx.fillRect(x,y+1,d,d-2)}ctx.globalAlpha=1;
   // sprites sorted by y
-  const list=[];if(!p.hidden)list.push({e:p,spr:SPR.player});if(G.uta&&G.uta.st!=null&&(G.uta.floor||0)===G.floor)list.push({e:G.uta,spr:SPR.uta});for(const e of G.enemies)list.push({e,spr:SPR[e.k]});
+  const list=[];if(!p.hidden)list.push({e:p,spr:SPR.player});if(utaShown())list.push({e:G.uta,spr:SPR.uta});for(const e of G.enemies)list.push({e,spr:SPR[e.k]});
   list.sort((a,b)=>a.e.y-b.e.y);
   for(const {e,spr} of list){const fr=e.moving?WALK[Math.floor(e.ft)%4]:((Math.floor(G.t*1.5+e.x*.013)%2)?4:0);const im=(spr.alt&&Math.floor(G.t*9+e.x*.05)%2?spr.alt:spr)[e.dir][fr];const x=Math.round(e.x-im.width/2-cx),y=Math.round(e.y-im.height+2-cy);
     ctx.fillStyle='rgba(0,0,0,.38)';ctx.beginPath();ctx.ellipse(e.x-cx,e.y-cy,(im.width-(im.padx||0)*2)*.36,3,0,0,7);ctx.fill();
@@ -1329,7 +1336,7 @@ function render(){
   LAMPS.forEach(([lx,ly],i)=>hole(lx-cx,ly-cy,60*lampFl(i),.85));
   if(G.floor===2&&F.cand)CAND.forEach(([x,y],i)=>{if(F.cand[i])hole(x*TS+8-cx,y*TS+4-cy,40*lampFl(i+3),.85)});
   if(G.floor===2&&F.mir)hole(BEAM_SRC[0]*TS+8-cx,BEAM_SRC[1]*TS+8-cy,40,.7);
-  if(G.uta&&G.uta.st!=null&&(G.uta.floor||0)===G.floor)hole(G.uta.x-cx,G.uta.y-10-cy,34,.75);
+  if(utaShown())hole(G.uta.x-cx,G.uta.y-10-cy,34,.75);
   if(F.power&&G.floor===0)for(const [lx,ly] of[[33*TS,22*TS],[33*TS,26*TS]])hole(lx-cx,ly-cy,90,.8);
   const sy=13-cy;if(sy>-80)for(const wx of WINS){dg.globalAlpha=Math.min(1,.38+G.lt*.6);dg.drawImage(SHAFT,wx*TS+2-cx,sy)}
   dg.globalAlpha=1;dg.globalCompositeOperation='source-over';ditherDark();
@@ -1341,7 +1348,7 @@ function render(){
   if(G.floor===2&&F.cand)CAND.forEach(([x,y],i)=>{if(F.cand[i]){const f=lampFl(i+3),r=30*f;ctx.globalAlpha=.24*f;ctx.drawImage(LS_WARM,x*TS+8-cx-r,y*TS+4-cy-r,r*2,r*2)}});
   if(F.power&&G.floor===0)for(const [lx,ly] of[[33*TS,22*TS],[33*TS,26*TS]]){ctx.globalAlpha=.09;ctx.drawImage(LS_WARM,lx-cx-80,ly-cy-80,160,160)}
   if(!p.hidden){ctx.globalAlpha=.05;ctx.drawImage(LS_WARM,p.x-cx-64,p.y-8-cy-64,128,128)}
-  if(G.uta&&G.uta.st!=null&&(G.uta.floor||0)===G.floor){ctx.globalAlpha=.07+.02*Math.sin(G.t*2);ctx.drawImage(LS_COLD,G.uta.x-cx-28,G.uta.y-12-cy-28,56,56)}
+  if(utaShown()){ctx.globalAlpha=.07+.02*Math.sin(G.t*2);ctx.drawImage(LS_COLD,G.uta.x-cx-28,G.uta.y-12-cy-28,56,56)}
   if(sy>-80)for(const wx of WINS){ctx.globalAlpha=Math.min(.9,.15+G.lt*.6);ctx.drawImage(SHAFT_C,wx*TS+2-cx,sy)}
   for(const e of G.enemies){if(!e._vis||e.dir===3)continue;const eyes=SPR[e.k].eyes[e.dir][e._fr]||[];const pu=.65+.35*Math.sin(G.t*6+e.x*.1);
     for(const [ex,ey] of eyes){ctx.globalAlpha=.85*pu;ctx.drawImage(LS_EYE,e._dx+ex-4.5,e._dy+ey-4.5,10,10)}}
@@ -1356,7 +1363,7 @@ function render(){
     if(e.mode==='aim'&&Math.floor(G.t*(e.t2<.3?30:12))%2){ctx.strokeStyle='rgba(255,40,40,.75)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(hx,e.y-cy-13);ctx.lineTo(e.aim[0]-cx,e.aim[1]-cy);ctx.stroke()}
     if(e.mode==='wind'||e.mode==='aim'||(e.mode==='reach'&&e.t2>.2)){ctx.font='12px DotGothic16, monospace';ctx.textAlign='center';ctx.fillStyle='#000';ctx.fillText('！',hx+1,top+1);ctx.fillStyle='#ff3344';ctx.fillText('！',hx,top)}
     if(e.stun>0)for(let i=0;i<3;i++){const a=G.t*6+i*2.1;ctx.fillStyle='#ffe066';ctx.fillRect(Math.round(hx+Math.cos(a)*7),Math.round(top+6+Math.sin(a)*2),2,2)}}
-  if(G.uta&&G.uta.st!=null&&(G.uta.floor||0)===G.floor&&G.utaSeen!==G.uta.st&&Math.floor(G.t*2)%2){const ux=Math.round(G.uta.x-cx),uy=Math.round(G.uta.y-cy-34);ctx.font='12px DotGothic16, monospace';ctx.textAlign='center';ctx.fillStyle='#000';ctx.fillText('？',ux+1,uy+1);ctx.fillStyle='#7fe0b0';ctx.fillText('？',ux,uy)}
+  if(utaShown()&&G.utaSeen!==G.uta.st&&Math.floor(G.t*2)%2){const ux=Math.round(G.uta.x-cx),uy=Math.round(G.uta.y-cy-34);ctx.font='12px DotGothic16, monospace';ctx.textAlign='center';ctx.fillStyle='#000';ctx.fillText('？',ux+1,uy+1);ctx.fillStyle='#7fe0b0';ctx.fillText('？',ux,uy)}
   if(p.stun>0)for(let i=0;i<3;i++){const a=G.t*7+i*2.1;ctx.fillStyle='#ffe066';ctx.fillRect(Math.round(p.x-cx+Math.cos(a)*6),Math.round(p.y-cy-20+Math.sin(a)*2),2,2)}
   // vignette & danger tint
   ctx.drawImage(VIG,0,0);
@@ -1559,6 +1566,6 @@ function makeLogo(){try{const L=mkC(200,96),g=L.getContext('2d');g.fillStyle='#f
   const im=$('#logoImg');im.src=out.toDataURL();im.hidden=false}catch(e){}}
 makeLogo();try{document.fonts.load('72px DotGothic16').then(makeLogo,()=>{})}catch(e){}
 redrawMap();$('#loading').remove();toTitle();requestAnimationFrame(frame);
-window.__game={PADNAV,openCode,openPiano,G,F,INV,M,SPR,BOSS,DIFF,stick,validCP,newGame,goFloor,beam,pianoKey,restore,snapshot,introNext,codeTry,get FLOORM(){return FLOORM},useTile,spawnBoss,feetTile,get CODE(){return CODE},get CP(){return CP},caught,walk,bfs,interact};
+window.__game={utaShown,utaHide,PADNAV,openCode,openPiano,G,F,INV,M,SPR,BOSS,DIFF,stick,validCP,newGame,goFloor,beam,pianoKey,restore,snapshot,introNext,codeTry,get FLOORM(){return FLOORM},useTile,spawnBoss,feetTile,get CODE(){return CODE},get CP(){return CP},caught,walk,bfs,interact};
 </script>
 </body></html>
