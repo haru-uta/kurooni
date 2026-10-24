@@ -91,14 +91,14 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 #card .ds{font-size:clamp(14px,2vw,18px);text-shadow:2px 2px 0 #000;padding:2px 12px;background:rgba(0,0,0,.55);border-radius:3px;animation:fadeUp .4s .32s both}
 #card .tick{position:absolute;left:0;white-space:nowrap;font-size:clamp(12px,1.6vw,16px);letter-spacing:.4em;color:#140d18;background:#ff3344;padding:3px 0;z-index:1;animation:tickL 3s linear infinite;box-shadow:0 0 0 2px #000}
 #card .tick.t1{top:7%}#card .tick.t2{bottom:7%;animation-direction:reverse}
-#card .fl{position:absolute;inset:0;background:#fff;z-index:3;animation:flashOut .35s ease-out forwards}
+#card .fl{position:absolute;inset:0;background:#ffe6e6;z-index:3;opacity:0;pointer-events:none;animation:flashOut .3s ease-out forwards}
 @keyframes cardIn{from{transform:scale(2.2);opacity:0}to{transform:none;opacity:1}}
 @keyframes bandIn{from{transform:translateY(-50%) skewY(-5deg) scaleY(0)}to{transform:translateY(-50%) skewY(-5deg) scaleY(1)}}
 @keyframes speedL{from{transform:translateX(0)}to{transform:translateX(-60px)}}
 @keyframes imgSlam{0%{transform:translateX(-120vw) skewX(20deg)}70%{transform:translateX(12px) skewX(-6deg)}100%{transform:none}}
 @keyframes nmIn{0%{transform:scale(2.6);opacity:0;filter:blur(3px)}100%{transform:none;opacity:1;filter:none}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-@keyframes flashOut{from{opacity:.9}to{opacity:0}}
+@keyframes flashOut{from{opacity:.75}to{opacity:0}}
 @keyframes tickL{from{transform:rotate(-3deg) translateX(0)}to{transform:rotate(-3deg) translateX(-50%)}}
 @keyframes cardShake{0%,100%{transform:none}20%{transform:translate(-6px,3px)}40%{transform:translate(5px,-4px)}60%{transform:translate(-3px,2px)}80%{transform:translate(2px,-1px)}}
 #code .win{padding:16px 20px;text-align:center}
@@ -986,7 +986,9 @@ function restore(cp){resetRuntime();for(const k in F)delete F[k];Object.assign(F
 function spawnBoss(k,tx,ty,card){const b=BOSS[k];const e={k,b,x:tx*TS+8,y:ty*TS+12,dir:0,f:0,ft:0,state:'appear',t:card?1.6:.6,path:null,pathT:0,lost:0,last:null,limit:b.limit||0,life:0,stepT:0,found:false};
   G.enemies.push(e);sfx('door');setTimeout(()=>sfx('sting'),120);G.shake=.4;
   if(card){showCard(k);F['met_'+k]=true}}
-function showCard(k){const b=BOSS[k];const c=$('#card');c.querySelector('img').src=BOSSART[k]||bigFaceURL(k);c.querySelector('.nm').textContent=`${b.name} が あらわれた！`;c.querySelector('.ds').textContent=b.desc;c.hidden=false;G.cardT=1.6}
+const ARTIMG={};function artImg(k){if(!ARTIMG[k]){const i=new Image();i.alt='';i.decoding='sync';i.src=BOSSART[k]||bigFaceURL(k);if(i.decode)i.decode().catch(()=>{});ARTIMG[k]=i}return ARTIMG[k]}
+setTimeout(()=>{for(const k in BOSS){try{artImg(k)}catch(e){}}},300);
+function showCard(k){const b=BOSS[k];const c=$('#card');const old=c.querySelector('.in img'),im=artImg(k);if(old!==im)old.replaceWith(im);if(!c.hidden){c.hidden=true;void c.offsetWidth}c.querySelector('.nm').textContent=`${b.name} が あらわれた！`;c.querySelector('.ds').textContent=b.desc;c.hidden=false;G.cardT=1.6}
 const faceCache={};function bigFaceURL(k){if(!faceCache[k]){const f=bigFace(k);const c=mkC(96,96);const g=c.getContext('2d');R(g,0,0,96,96,'#2a0608');const s=Math.floor(80/Math.max(f.width,f.height));g.drawImage(f,(96-f.width*s)>>1,(96-f.height*s)>>1,f.width*s,f.height*s);faceCache[k]=c.toDataURL()}return faceCache[k]}
 function los(ax,ay,bx,by){let dx=Math.abs(bx-ax),dy=-Math.abs(by-ay),sx=ax<bx?1:-1,sy=ay<by?1:-1,err=dx+dy,x=ax,y=ay;let n=0;
   while(!(x===bx&&y===by)&&n++<60){if(!(x===ax&&y===ay)&&OPAQUE.has(tile(x,y)))return false;const e2=2*err;if(e2>=dy){err+=dy;x+=sx}if(e2<=dx){err+=dx;y+=sy}}return true}
@@ -1178,7 +1180,7 @@ function endFx(dt){const c=$('#end .motes');if(!c||$('#end').hidden)return;const
 
 // ================= caught
 function caught(e){if(G.caught||G.state!=='play')return;G.caught={e,t:0,k:e.k,face:null};G.state='caught';G.chase=false;sfx('sting');G.shake=.6;$('#hud').hidden=true;$('#touch').hidden=true;$('#pauseBtn').hidden=true;
-  const img=new Image();img.src=BOSSART[e.k]||bigFaceURL(e.k);G.caught.face=img;$('#msg').hidden=true;DQ.length=0;dlg=null}
+  G.caught.face=artImg(e.k);$('#msg').hidden=true;DQ.length=0;dlg=null}
 function drawCaught(dt){const c=G.caught;c.t+=dt;const t=c.t;const W=VW,H=VH;
   if(t<.6){G.shake=.3;return false}
   ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
